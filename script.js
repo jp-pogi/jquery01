@@ -91,8 +91,12 @@ $(document).ready(function() {
         } else {
             $mode.text('Break Time');
             timeLeft = getCurrentDuration() * 60;
-            totalSessions++;
-            saveSession();
+            
+            // Only increment and save when completing a WORK session
+            if (!isWorkSession) {  // This means we just finished a work session
+                totalSessions++;
+                saveSession();
+            }
         }
         
         updateDisplay();
@@ -153,19 +157,26 @@ $(document).ready(function() {
     function displayHistory(sessions) {
         $historyList.empty();
         
-        if (sessions && sessions.length > 0) {
-            sessions.slice().reverse().forEach(session => {
+        // Filter to only show work sessions
+        const workSessions = sessions.filter(session => session.type === 'work');
+        
+        if (workSessions.length > 0) {
+            workSessions.slice().reverse().forEach((session, index) => {
                 const date = new Date(session.completed_at);
                 const li = $('<li>').html(`
-                    <strong>${session.type === 'work' ? 'Work' : 'Break'}</strong> - 
+                    <strong>Session ${workSessions.length - index}</strong> - 
                     ${session.duration} minutes - 
                     ${date.toLocaleDateString()} ${date.toLocaleTimeString()}
                 `);
                 $historyList.append(li);
             });
         } else {
-            $historyList.append('<li>No sessions recorded yet</li>');
+            $historyList.append('<li>No work sessions recorded yet</li>');
         }
+
+        
+        $('#totalSessions').text(workSessions.length);
+        $('#totalTime').text(workSessions.reduce((sum, s) => sum + s.duration, 0));
     }
     
     function clearHistory() {
@@ -175,15 +186,22 @@ $(document).ready(function() {
             $.ajax({
                 url: 'clear_history.php',
                 type: 'POST',
+                dataType: 'json',
                 success: function(response) {
                     if (response.success) {
-                        $historyList.empty();
-                        $historyList.append('<li>No sessions recorded yet</li>');
+                        $historyList.empty().append('<li>No sessions recorded yet</li>');
                         showMessage('History cleared successfully!');
+                    } else {
+                        showMessage(response.message || 'Failed to clear history', true);
                     }
                 },
-                error: function() {
-                    showMessage('Failed to clear history', true);
+                error: function(xhr) {
+                    let errorMsg = 'Error clearing history';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMsg = response.message || errorMsg;
+                    } catch (e) {}
+                    showMessage(errorMsg, true);
                 },
                 complete: function() {
                     $clearHistoryBtn.prop('disabled', false).text('Clear History');

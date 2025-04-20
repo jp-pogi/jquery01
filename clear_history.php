@@ -3,17 +3,29 @@ header('Content-Type: application/json');
 
 $dataFile = 'sessions.json';
 
-// Verify file exists and is writable
-if (file_exists($dataFile) {
-    if (is_writable($dataFile)) {
-        if (file_put_contents($dataFile, json_encode([])) {
-            echo json_encode(['success' => true]);
-            exit;
-        }
+try {
+    // Verify file exists or create it
+    if (!file_exists($dataFile)) {
+        file_put_contents($dataFile, json_encode([]));
     }
-}
 
-// If we get here, something failed
-http_response_code(500);
-echo json_encode(['error' => 'Could not clear history']);
+    // Check if file is writable
+    if (!is_writable($dataFile)) {
+        throw new Exception('File is not writable');
+    }
+
+    // Clear the file contents
+    if (file_put_contents($dataFile, json_encode([])) === false) {
+        throw new Exception('Failed to write to file');
+    }
+
+    echo json_encode(['success' => true]);
+    
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode([
+        'error' => 'Could not clear history',
+        'message' => $e->getMessage()
+    ]);
+}
 ?>
