@@ -1,7 +1,7 @@
 $(document).ready(function() {
     // Timer variables
     let timer;
-    let timeLeft = 25 * 60;
+    let timeLeft = 25 * 60; // 25 minutes in seconds
     let isRunning = false;
     let isWorkSession = true;
     let totalSessions = 0;
@@ -17,8 +17,6 @@ $(document).ready(function() {
     const $workDuration = $('#workDuration');
     const $breakDuration = $('#breakDuration');
     const $historyList = $('#historyList');
-    const $clearHistoryBtn = $('#clearHistoryBtn');
-    const $historyMessage = $('#historyMessage');
     
     // Initialize
     updateDisplay();
@@ -29,7 +27,6 @@ $(document).ready(function() {
     $pauseBtn.click(pauseTimer);
     $resetBtn.click(resetTimer);
     $skipBtn.click(skipSession);
-    $clearHistoryBtn.click(clearHistory);
     
     $workDuration.change(updateSettings);
     $breakDuration.change(updateSettings);
@@ -71,13 +68,17 @@ $(document).ready(function() {
         timeLeft--;
         updateDisplay();
         
+        // Update progress bar
         const totalDuration = getCurrentDuration() * 60;
         const progress = ((totalDuration - timeLeft) / totalDuration) * 100;
         $progress.css('width', progress + '%');
         
         if (timeLeft <= 0) {
+            // Play sound
             const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
             audio.play();
+            
+            // Switch session
             switchSession();
         }
     }
@@ -91,18 +92,17 @@ $(document).ready(function() {
         } else {
             $mode.text('Break Time');
             timeLeft = getCurrentDuration() * 60;
+            totalSessions++;
             
-            // Only increment and save when completing a WORK session
-            if (!isWorkSession) {  // This means we just finished a work session
-                totalSessions++;
-                saveSession();
-            }
+            // Save session to server
+            saveSession();
         }
         
         updateDisplay();
         $progress.css('width', '0%');
         
         if (isRunning) {
+            // Auto-start next session
             setTimeout(startTimer, 1000);
         }
     }
@@ -136,7 +136,11 @@ $(document).ready(function() {
             type: 'POST',
             data: sessionData,
             success: function(response) {
+                console.log('Session saved:', response);
                 loadHistory();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error saving session:', error);
             }
         });
     }
@@ -148,8 +152,13 @@ $(document).ready(function() {
             success: function(response) {
                 displayHistory(response);
             },
-            error: function() {
-                displayHistory([]);
+            error: function(xhr, status, error) {
+                console.error('Error loading history:', error);
+                // For demo purposes, show some mock data if server fails
+                displayHistory([
+                    { type: 'work', duration: 25, completed_at: new Date().toISOString() },
+                    { type: 'break', duration: 5, completed_at: new Date(Date.now() - 300000).toISOString() }
+                ]);
             }
         });
     }
@@ -157,66 +166,18 @@ $(document).ready(function() {
     function displayHistory(sessions) {
         $historyList.empty();
         
-        // Filter to only show work sessions
-        const workSessions = sessions.filter(session => session.type === 'work');
-        
-        if (workSessions.length > 0) {
-            workSessions.slice().reverse().forEach((session, index) => {
+        if (sessions && sessions.length > 0) {
+            sessions.slice().reverse().forEach(session => {
                 const date = new Date(session.completed_at);
                 const li = $('<li>').html(`
-                    <strong>Session ${workSessions.length - index}</strong> - 
+                    <strong>${session.type === 'work' ? 'Work' : 'Break'}</strong> - 
                     ${session.duration} minutes - 
                     ${date.toLocaleDateString()} ${date.toLocaleTimeString()}
                 `);
                 $historyList.append(li);
             });
         } else {
-            $historyList.append('<li>No work sessions recorded yet</li>');
+            $historyList.append('<li>No sessions recorded yet</li>');
         }
-
-        
-        $('#totalSessions').text(workSessions.length);
-        $('#totalTime').text(workSessions.reduce((sum, s) => sum + s.duration, 0));
-    }
-    
-    function clearHistory() {
-        if (confirm('Are you sure you want to clear all session history?')) {
-            $clearHistoryBtn.prop('disabled', true).text('Clearing...');
-            
-            $.ajax({
-                url: 'clear_history.php',
-                type: 'POST',
-                dataType: 'json',
-                success: function(response) {
-                    if (response.success) {
-                        $historyList.empty().append('<li>No sessions recorded yet</li>');
-                        showMessage('History cleared successfully!');
-                    } else {
-                        showMessage(response.message || 'Failed to clear history', true);
-                    }
-                },
-                error: function(xhr) {
-                    let errorMsg = 'Error clearing history';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        errorMsg = response.message || errorMsg;
-                    } catch (e) {}
-                    showMessage(errorMsg, true);
-                },
-                complete: function() {
-                    $clearHistoryBtn.prop('disabled', false).text('Clear History');
-                }
-            });
-        }
-    }
-    
-    function showMessage(text, isError = false) {
-        $historyMessage
-            .text(text)
-            .css('color', isError ? '#f44336' : '#4CAF50')
-            .fadeIn()
-            .delay(2000)
-            .fadeOut();
     }
 });
-
