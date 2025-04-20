@@ -175,15 +175,22 @@ $(document).ready(function() {
             $.ajax({
                 url: 'clear_history.php',
                 type: 'POST',
+                dataType: 'json',
                 success: function(response) {
                     if (response.success) {
-                        $historyList.empty();
-                        $historyList.append('<li>No sessions recorded yet</li>');
+                        $historyList.empty().append('<li>No sessions recorded yet</li>');
                         showMessage('History cleared successfully!');
+                    } else {
+                        showMessage(response.message || 'Failed to clear history', true);
                     }
                 },
-                error: function() {
-                    showMessage('Failed to clear history', true);
+                error: function(xhr) {
+                    let errorMsg = 'Error clearing history';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMsg = response.message || errorMsg;
+                    } catch (e) {}
+                    showMessage(errorMsg, true);
                 },
                 complete: function() {
                     $clearHistoryBtn.prop('disabled', false).text('Clear History');
