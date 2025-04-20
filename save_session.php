@@ -1,8 +1,12 @@
 <?php
 header('Content-Type: application/json');
 
-// Simple file-based storage (in a real app, use a database)
 $dataFile = 'sessions.json';
+
+// Create file if it doesn't exist
+if (!file_exists($dataFile)) {
+    file_put_contents($dataFile, json_encode([]));
+}
 
 // Get input data
 $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
@@ -14,10 +18,7 @@ if (empty($input['type']) || empty($input['duration']) || empty($input['complete
 }
 
 // Load existing sessions
-$sessions = [];
-if (file_exists($dataFile)) {
-    $sessions = json_decode(file_get_contents($dataFile), true) ?: [];
-}
+$sessions = json_decode(file_get_contents($dataFile), true) ?: [];
 
 // Add new session
 $sessions[] = [
@@ -27,7 +28,10 @@ $sessions[] = [
 ];
 
 // Save back to file
-file_put_contents($dataFile, json_encode($sessions));
-
-echo json_encode(['success' => true]);
+if (file_put_contents($dataFile, json_encode($sessions))) {
+    echo json_encode(['success' => true]);
+} else {
+    http_response_code(500);
+    echo json_encode(['error' => 'Could not save session']);
+}
 ?>

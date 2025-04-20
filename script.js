@@ -1,7 +1,7 @@
 $(document).ready(function() {
     // Timer variables
     let timer;
-    let timeLeft = 25 * 60; // 25 minutes in seconds
+    let timeLeft = 25 * 60;
     let isRunning = false;
     let isWorkSession = true;
     let totalSessions = 0;
@@ -17,6 +17,8 @@ $(document).ready(function() {
     const $workDuration = $('#workDuration');
     const $breakDuration = $('#breakDuration');
     const $historyList = $('#historyList');
+    const $clearHistoryBtn = $('#clearHistoryBtn');
+    const $historyMessage = $('#historyMessage');
     
     // Initialize
     updateDisplay();
@@ -27,6 +29,7 @@ $(document).ready(function() {
     $pauseBtn.click(pauseTimer);
     $resetBtn.click(resetTimer);
     $skipBtn.click(skipSession);
+    $clearHistoryBtn.click(clearHistory);
     
     $workDuration.change(updateSettings);
     $breakDuration.change(updateSettings);
@@ -68,17 +71,13 @@ $(document).ready(function() {
         timeLeft--;
         updateDisplay();
         
-        // Update progress bar
         const totalDuration = getCurrentDuration() * 60;
         const progress = ((totalDuration - timeLeft) / totalDuration) * 100;
         $progress.css('width', progress + '%');
         
         if (timeLeft <= 0) {
-            // Play sound
             const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
             audio.play();
-            
-            // Switch session
             switchSession();
         }
     }
@@ -93,8 +92,6 @@ $(document).ready(function() {
             $mode.text('Break Time');
             timeLeft = getCurrentDuration() * 60;
             totalSessions++;
-            
-            // Save session to server
             saveSession();
         }
         
@@ -102,7 +99,6 @@ $(document).ready(function() {
         $progress.css('width', '0%');
         
         if (isRunning) {
-            // Auto-start next session
             setTimeout(startTimer, 1000);
         }
     }
@@ -136,11 +132,7 @@ $(document).ready(function() {
             type: 'POST',
             data: sessionData,
             success: function(response) {
-                console.log('Session saved:', response);
                 loadHistory();
-            },
-            error: function(xhr, status, error) {
-                console.error('Error saving session:', error);
             }
         });
     }
@@ -152,13 +144,8 @@ $(document).ready(function() {
             success: function(response) {
                 displayHistory(response);
             },
-            error: function(xhr, status, error) {
-                console.error('Error loading history:', error);
-                // For demo purposes, show some mock data if server fails
-                displayHistory([
-                    { type: 'work', duration: 25, completed_at: new Date().toISOString() },
-                    { type: 'break', duration: 5, completed_at: new Date(Date.now() - 300000).toISOString() }
-                ]);
+            error: function() {
+                displayHistory([]);
             }
         });
     }
@@ -179,5 +166,38 @@ $(document).ready(function() {
         } else {
             $historyList.append('<li>No sessions recorded yet</li>');
         }
+    }
+    
+    function clearHistory() {
+        if (confirm('Are you sure you want to clear all session history?')) {
+            $clearHistoryBtn.prop('disabled', true).text('Clearing...');
+            
+            $.ajax({
+                url: 'clear_history.php',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        $historyList.empty();
+                        $historyList.append('<li>No sessions recorded yet</li>');
+                        showMessage('History cleared successfully!');
+                    }
+                },
+                error: function() {
+                    showMessage('Failed to clear history', true);
+                },
+                complete: function() {
+                    $clearHistoryBtn.prop('disabled', false).text('Clear History');
+                }
+            });
+        }
+    }
+    
+    function showMessage(text, isError = false) {
+        $historyMessage
+            .text(text)
+            .css('color', isError ? '#f44336' : '#4CAF50')
+            .fadeIn()
+            .delay(2000)
+            .fadeOut();
     }
 });
